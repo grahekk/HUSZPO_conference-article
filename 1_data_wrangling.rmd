@@ -60,7 +60,7 @@ This is the data that will be joined with the data from "Odluka" files.
 
 ```{r}
 #data for cadastral units
-KO <- read_csv("KO.csv") %>% as_tibble()
+KO <- read_csv("Data/KO.csv") %>% as_tibble()
 
 #files concerning the cadastral parcels, for whole Croatia
 e <- environment()
