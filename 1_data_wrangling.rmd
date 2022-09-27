@@ -1,0 +1,154 @@
+---
+title: "Data wrangling and pre-analysis"
+author: "Nikola Gersak"
+date: '21 06 2022 '
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+#install.packages("terra")
+#install.packages("sf")
+#install.packages("rgdal")
+
+#library(terra)
+library(tidyverse)
+library(data.table)
+library(readxl)
+
+#library(sf)
+#library(rgdal)
+```
+
+# Wrangling: Cadastral parcels (KC) from Odluka merging with cadastral units (KO) and then with cadastral parcel shapes from e
+
+There are three groups of data that are being read into the global environment. First type concerning the 'Odluka' is the data that comes from digitized tables. Second data named 'KO' concerns the cadastral units of whole Croatia, but also their relation to regions and forestry units of Croatia. The third data that is read into the environment 'e' is a database of cadastral parcels of Croatia.
+
+The general objective is to join the cadastral parcels from the Odluka with parcels from the environment 'e' to obtain the variables that can be joined later in the QGIS with it's geometries.
+
+Later also, the statistical analysis will be performed.
+
+## The loading part {-}
+
+```{r}
+#read the main file with read.table because read_csv2 doesn't recognise encoding
+
+odluka_1 <- read_excel("Data/1. Odluka.xlsx")
+odluka_5 <- read_excel("Data/5. Odluka.xlsx")
+odluka_6 <- read_excel("Data/6. Odluka.xlsx")
+odluka_7 <- read_excel("Data/7. Odluka.xlsx")
+odluka_8 <- read_excel("Data/8. Odluka.xlsx")
+odluka_9 <- read_excel("Data/9. Odluka.xlsx")
+odluka_10 <- read_excel("Data/10. Odluka.xlsx")
+
+odluka <- odluka_1
+odluka <- bind_rows(odluka_1, odluka_5, 
+                    odluka_6, odluka_7, 
+                    odluka_8, odluka_9, 
+                    odluka_10)
+
+#wrangle the data from "Odluka"
+odluka %>% mutate("KC_odluka" = KC) %>% separate_rows(KC, sep = ",") -> odluka
+odluka %>% mutate(KC = str_trim(KC)) %>% 
+  mutate("KC_2" = str_replace(KC, pattern = 'd.', replacement = "")) -> odluka
+```
+
+### The helping data {-}
+
+This is the data that will be joined with the data from "Odluka" files.
+
+```{r}
+#data for cadastral units
+KO <- read_csv("KO.csv") %>% as_tibble()
+
+#files concerning the cadastral parcels, for whole Croatia
+e <- environment()
+list.files(path = ".\\KC_zupanije_csv", pattern = ".csv") -> ls_names
+str_c(".\\KC_zupanije_csv\\", list.files(path = ".\\KC_zupanije_csv", pattern = ".csv")) -> ls_paths
+
+map(setNames(ls_paths, ls_names), read_csv) %>% as.environment() -> e
+e %>% as.list %>% rbindlist(fill = T, idcol = T) -> e_s
+
+#a variable that will be needed later, the KOKC variable
+e_s %>% mutate(KOKC = str_c(KO, '_', BROJ_KC)) -> e_s
+```
+
+The first joining step: joining the parcels with KO ID number
+
+```{r}
+#ID of KO is needed first
+odluka %>% left_join(KO, by = c("KO" = "ko_fix", "Sumarija" = "Sumariafix")) -> odluka
+odluka$ko_mb <- as.numeric(odluka$ko_mb)
+```
+
+Some cadastral units were not joined with the odluka table because the unit names are not typed correctly. The reparation needs to be done by hand. This few units that were left empty in odluka can easily be found.
+
+```{r the problematic data}
+#the problematic data needs to be cleaned by hand
+#the Na values that are not filled because they were not joined. Why is that so?
+odluka %>% filter(is.na(ko_mb)==T) %>% select(KO) %>% unique()
+#it is mostly because the names of KO are not matching, they are fixed now
+
+```
+
+# The joining part {-}
+
+```{r}
+#join cadastral parcels by ID of cadastral unit, and cadastral parcel number
+#before that, joining the ID and number together so that the joining can be faster by checking the double criteria at the same time
+odluka %>% mutate(KOKC = str_c(ko_mb, '_', KC_2), 
+                  Pov_unique = Povrsina) -> odluka
+#the unique area is needed so that the sum is valid later
+odluka$Pov_unique[duplicated(odluka$KC_odluka)] <- NA
+odluka %>% left_join(e_s, by = c("KOKC" = "KOKC")) -> odluka_spojena
+
+#check
+odluka_spojena %>% filter(is.na(.id)==T)
+odluka_spojena$Povrsina <- as.numeric(odluka_spojena$Povrsina)
+odluka_spojena %>% filter(is.na(Povrsina)==T)
+odluka_spojena %>% distinct(KOKC)
+
+#split by KO to check the number of KO's
+split_list <- split(odluka,odluka$KO)
+
+odluka_1_spojena <- odluka_spojena
+odluka_5_spojena <- odluka_spojena
+odluka_6_spojena <- odluka_spojena
+odluka_7_spojena <- odluka_spojena
+odluka_8_spojena <- odluka_spojena
+odluka_9_spojena <- odluka_spojena
+odluka_10_spojena <- odluka_spojena
+
+odluka_1_spojena %>% write_csv("odluka_1_spojena.csv")
+odluka_5_spojena %>% write_csv("odluka_5_spojena.csv")
+odluka_6_spojena %>% write_csv("odluka_6_spojena.csv")
+odluka_7_spojena %>% write_csv("odluka_7_spojena.csv")
+odluka_8_spojena %>% write_csv("odluka_8_spojena.csv")
+odluka_9_spojena %>% write_csv("odluka_9_spojena.csv")
+odluka_10_spojena %>% write_csv("odluka_10_spojena.csv")
+
+odluka_spojena %>% write_csv("odluke_sve.csv")
+
+#join all the odlukas
+
+odlukas <- bind_rows(odluka_1_spojena, odluka_5_spojena, 
+                     odluka_6_spojena, odluka_7_spojena, 
+                     odluka_8_spojena, odluka_9_spojena, 
+                     odluka_10_spojena)
+
+```
+
+## Contracts {-}
+
+For some cadastral parcels the contracts were signed. The "ugovori-MP_fix" table represents those parcels.
+
+```{r}
+ugovori_MP_fix <- read_excel("Data/ugovori-MP_fix.xlsx")
+ugovori_MP_fix %>% separate_rows(Katastarske_opcine_CONC, 
+                                 DIO_CONC, 
+                                 POVRSINA_cestica_CONC, 
+                                 PRIL_KOORD_CONC, sep = "/")
+
+```
+

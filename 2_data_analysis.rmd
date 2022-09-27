@@ -1,0 +1,118 @@
+---
+title: "2_data_analysis"
+author: "Nikola Gersak"
+date: '21 08 2022 '
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(data.table)
+library(readxl)
+
+```
+
+## R Markdown
+
+The data concerning cadastral parcels form "the decisions" was wrangled in the first report.
+First i'm interested in some descriptive statistical information I can obtain from the data. For example, i might be asking questions such as:
+
+<ol>
+
+which "decisions" carry the most cadastral parcels? 
+which USP-s are the most frequent in cadastral parcels?
+which sumarijas are the most frequent?
+which KO-s are the most frequent? - maybe not
+which USP-s gave the most surface of their forests away?
+which "decisions" carry the most invalid/non existent cadastral parcels?
+
+what's the  ratio of signed contracts and non signed contracts for cadastral parcels?
+which decisions hold the majority of contracts signed?
+how is it correlated with years?
+how is it correlated with the distance to the sea?
+is there correlation with surface and contracts signed?
+
+what are the parcels used now for?
+how many of the cadastral parcels were used for the purpose they were intended to?
+how many for whom the contracts were signed?
+how does the distribution of land use of these parcels look like now?
+
+how many of those parcels fall in the area of natura 2000?
+how does the land use of those parcels correlate with the measures for protecting the habitat types of interest?
+
+</ol>
+
+
+```{r}
+
+#distribution by USP and Sumarija
+odluka %>% group_by(USP.x) %>% 
+  summarise("Parcels" = n()) %>% 
+  ggplot(aes(x = reorder(USP.x, Parcels), 
+             y = Parcels, 
+             fill = USP.x)) + 
+  geom_bar(stat = 'identity') +
+  theme_classic()+
+  theme(axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(),
+        legend.position = c(0.25,0.65))+
+  scale_fill_brewer(palette = "Paired")+
+  xlab(label = "USP")+
+  ylab(label = "Number of parcels")+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+  
+#distribution by odluka
+odluka %>% group_by(odluka) %>% 
+  summarise("Parcels" = n(), 
+            odluka_o = as.character(odluka)) %>% 
+  unique %>% 
+  ggplot(aes(x = reorder(odluka_o, odluka), 
+             y = Parcels,
+             fill = odluka_o)) + 
+  geom_bar(stat = 'identity') +
+  theme_classic()+
+  theme(axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(),
+        legend.position = c(0.25,0.65))+
+  scale_fill_brewer(palette = "Set1")+
+  xlab(label = "Odluka")+
+  ylab(label = "Number of parcels")+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+#most of surface - chart pie
+odluka_spojena %>% group_by(odluka) %>% 
+  summarise("Surface" = sum(Povrsina), odluka_o = as.character(odluka)) %>% unique %>% 
+  ggplot(aes(x = reorder(odluka_o, odluka), 
+             y = Surface,
+             fill = odluka_o)) + 
+  geom_bar(stat = 'identity') +
+  theme_classic()+
+  theme(axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(),
+        legend.position = c(0.25,0.65))+
+  scale_fill_brewer(palette = "Set1")+
+  xlab(label = "Odluka")+
+  ylab(label = "Area")+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+odluka %>% group_by(USP.x) %>% 
+  summarise("Surface" = sum(Povrsina), odluka_o = as.character(odluka)) %>% unique %>% 
+  ggplot(aes(x = reorder(USP.x, Surface), 
+             y = Surface, 
+             fill = odluka_o)) + 
+  geom_bar(stat = 'identity') +
+  theme_classic()+
+  theme(axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(),
+        legend.position = c(0.25,0.65))+
+  scale_fill_brewer(palette = "Paired")+
+  xlab(label = "USP")+
+  ylab(label = "Area")+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+ggsave("Povrsine u ovisnosti o USP i odlukama.jpg")
+
+```
+
