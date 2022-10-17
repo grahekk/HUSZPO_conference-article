@@ -8,17 +8,11 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
-#install.packages("terra")
-#install.packages("sf")
-#install.packages("rgdal")
-
-#library(terra)
 library(tidyverse)
 library(data.table)
 library(readxl)
+library(fuzzyjoin)
 
-#library(sf)
-#library(rgdal)
 ```
 
 # Wrangling: Cadastral parcels (KC) from Odluka merging with cadastral units (KO) and then with cadastral parcel shapes from e
@@ -42,7 +36,6 @@ odluka_8 <- read_excel("Data/8. Odluka.xlsx")
 odluka_9 <- read_excel("Data/9. Odluka.xlsx")
 odluka_10 <- read_excel("Data/10. Odluka.xlsx")
 
-odluka <- odluka_1
 odluka <- bind_rows(odluka_1, odluka_5, 
                     odluka_6, odluka_7, 
                     odluka_8, odluka_9, 
@@ -103,39 +96,22 @@ odluka %>% mutate(KOKC = str_c(ko_mb, '_', KC_2),
 odluka$Pov_unique[duplicated(odluka$KC_odluka)] <- NA
 odluka %>% left_join(e_s, by = c("KOKC" = "KOKC")) -> odluka_spojena
 
-#check
+#check of variables
 odluka_spojena %>% filter(is.na(.id)==T)
 odluka_spojena$Povrsina <- as.numeric(odluka_spojena$Povrsina)
 odluka_spojena %>% filter(is.na(Povrsina)==T)
 odluka_spojena %>% distinct(KOKC)
 
+#after the check, the rest of the parcels should be joined in second iteration
+odluka_spojena %>% filter(is.na(.id)==T) -> odluka_part_2
+odluka_part_2 %>% mutate(KOKC = str_c(KOKC, '*')) -> odluka_part_2
+#something like this, didn't really work
+odluka_part_2 %>% regex_left_join(e_s, by=c("KOKC"="KOKC"))
+
 #split by KO to check the number of KO's
 split_list <- split(odluka,odluka$KO)
 
-odluka_1_spojena <- odluka_spojena
-odluka_5_spojena <- odluka_spojena
-odluka_6_spojena <- odluka_spojena
-odluka_7_spojena <- odluka_spojena
-odluka_8_spojena <- odluka_spojena
-odluka_9_spojena <- odluka_spojena
-odluka_10_spojena <- odluka_spojena
-
-odluka_1_spojena %>% write_csv("odluka_1_spojena.csv")
-odluka_5_spojena %>% write_csv("odluka_5_spojena.csv")
-odluka_6_spojena %>% write_csv("odluka_6_spojena.csv")
-odluka_7_spojena %>% write_csv("odluka_7_spojena.csv")
-odluka_8_spojena %>% write_csv("odluka_8_spojena.csv")
-odluka_9_spojena %>% write_csv("odluka_9_spojena.csv")
-odluka_10_spojena %>% write_csv("odluka_10_spojena.csv")
-
 odluka_spojena %>% write_csv("odluke_sve.csv")
-
-#join all the odlukas
-
-odlukas <- bind_rows(odluka_1_spojena, odluka_5_spojena, 
-                     odluka_6_spojena, odluka_7_spojena, 
-                     odluka_8_spojena, odluka_9_spojena, 
-                     odluka_10_spojena)
 
 ```
 
